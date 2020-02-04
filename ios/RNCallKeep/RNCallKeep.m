@@ -41,10 +41,10 @@ static NSString *const RNCallKeepDidLoadWithEvents = @"RNCallKeepDidLoadWithEven
     BOOL _isStartCallActionEventListenerAdded;
     bool _hasListeners;
     NSMutableArray *_delayedEvents;
-   
 }
 
 static CXProvider* sharedProvider;
+static NSDictionary* callsSettings;
 
 // should initialise in AppDelegate.m
 RCT_EXPORT_MODULE()
@@ -130,6 +130,7 @@ RCT_EXPORT_MODULE()
 + (void)initCallKitProvider {
     if (sharedProvider == nil) {
         NSDictionary *settings = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"RNCallKeepSettings"];
+        callsSettings = settings;
         sharedProvider = [[CXProvider alloc] initWithConfiguration:[RNCallKeep getProviderConfiguration:settings]];
     }
 }
@@ -348,10 +349,10 @@ RCT_EXPORT_METHOD(sendDTMF:(NSString *)uuidString dtmf:(NSString *)key)
                 callUpdate.remoteHandle = startCallAction.handle;
                 callUpdate.hasVideo = startCallAction.video;
                 callUpdate.localizedCallerName = startCallAction.contactIdentifier;
-                callUpdate.supportsDTMF = YES;
-                callUpdate.supportsHolding = YES;
-                callUpdate.supportsGrouping = YES;
-                callUpdate.supportsUngrouping = YES;
+                callUpdate.supportsDTMF = callsSettings[@"supportsDTMF"] ? [callsSettings[@"supportsDTMF"] boolValue] : NO;
+                callUpdate.supportsHolding = callsSettings[@"supportsHolding"] ? [callsSettings[@"supportsHolding"] boolValue] : NO;
+                callUpdate.supportsGrouping = callsSettings[@"supportsGrouping"] ? [callsSettings[@"supportsGrouping"] boolValue] : NO;
+                callUpdate.supportsUngrouping = callsSettings[@"supportsUngrouping"] ? [callsSettings[@"supportsUngrouping"] boolValue] : NO;
                 [self.callKeepProvider reportCallWithUUID:startCallAction.callUUID updated:callUpdate];
             }
         }
@@ -369,18 +370,19 @@ RCT_EXPORT_METHOD(sendDTMF:(NSString *)uuidString dtmf:(NSString *)key)
 #ifdef DEBUG
     NSLog(@"[RNCallKeep][reportNewIncomingCall] uuidString = %@", uuidString);
 #endif
+    [RNCallKeep initCallKitProvider];
+    
     int _handleType = [RNCallKeep getHandleType:handleType];
     NSUUID *uuid = [[NSUUID alloc] initWithUUIDString:uuidString];
     CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
     callUpdate.remoteHandle = [[CXHandle alloc] initWithType:_handleType value:handle];
-    callUpdate.supportsDTMF = YES;
-    callUpdate.supportsHolding = YES;
-    callUpdate.supportsGrouping = YES;
-    callUpdate.supportsUngrouping = YES;
+    callUpdate.supportsDTMF = callsSettings[@"supportsDTMF"] ? [callsSettings[@"supportsDTMF"] boolValue] : NO;
+    callUpdate.supportsHolding = callsSettings[@"supportsHolding"] ? [callsSettings[@"supportsHolding"] boolValue] : NO;
+    callUpdate.supportsGrouping = callsSettings[@"supportsGrouping"] ? [callsSettings[@"supportsGrouping"] boolValue] : NO;
+    callUpdate.supportsUngrouping = callsSettings[@"supportsUngrouping"] ? [callsSettings[@"supportsUngrouping"] boolValue] : NO;
     callUpdate.hasVideo = hasVideo;
     callUpdate.localizedCallerName = localizedCallerName;
 
-    [RNCallKeep initCallKitProvider];
     [sharedProvider reportNewIncomingCallWithUUID:uuid update:callUpdate completion:^(NSError * _Nullable error) {
         RNCallKeep *callKeep = [RNCallKeep allocWithZone: nil];
         [callKeep sendEventWithNameWrapper:RNCallKeepDidDisplayIncomingCall body:@{ @"error": error ? error.localizedDescription : @"", @"callUUID": uuidString, @"handle": handle, @"localizedCallerName": localizedCallerName, @"hasVideo": hasVideo ? @"1" : @"0", @"fromPushKit": fromPushKit ? @"1" : @"0", @"payload": payload }];
@@ -706,3 +708,4 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
 }
 
 @end
+
